@@ -11,10 +11,13 @@
 # limitations under the License.
 
 from typing import Any, Optional
+import os
+
+flavour = 'Presto' if os.environ.get('PRESTO_FLAVOUR', 'hetu') else 'Trino'
 
 DEFAULT_PORT = 8080
 DEFAULT_TLS_PORT = 443
-DEFAULT_SOURCE = "trino-python-client"
+DEFAULT_SOURCE = f"{flavour}-python-client"
 DEFAULT_CATALOG: Optional[str] = None
 DEFAULT_SCHEMA: Optional[str] = None
 DEFAULT_AUTH: Optional[Any] = None
@@ -26,33 +29,33 @@ HTTPS = "https"
 
 URL_STATEMENT_PATH = "/v1/statement"
 
-HEADER_CATALOG = "X-Trino-Catalog"
-HEADER_SCHEMA = "X-Trino-Schema"
-HEADER_SOURCE = "X-Trino-Source"
-HEADER_USER = "X-Trino-User"
-HEADER_CLIENT_INFO = "X-Trino-Client-Info"
-HEADER_CLIENT_TAGS = "X-Trino-Client-Tags"
-HEADER_EXTRA_CREDENTIAL = "X-Trino-Extra-Credential"
-HEADER_TIMEZONE = "X-Trino-Time-Zone"
+HEADER_CATALOG = f"X-{flavour}-Catalog"
+HEADER_SCHEMA = f"X-{flavour}-Schema"
+HEADER_SOURCE = f"X-{flavour}-Source"
+HEADER_USER = f"X-{flavour}-User"
+HEADER_CLIENT_INFO = f"X-{flavour}-Client-Info"
+HEADER_CLIENT_TAGS = f"X-{flavour}-Client-Tags"
+HEADER_EXTRA_CREDENTIAL = f"X-{flavour}-Extra-Credential"
+HEADER_TIMEZONE = f"X-{flavour}-Time-Zone"
 
-HEADER_SESSION = "X-Trino-Session"
-HEADER_SET_SESSION = "X-Trino-Set-Session"
-HEADER_CLEAR_SESSION = "X-Trino-Clear-Session"
+HEADER_SESSION = f"X-{flavour}-Session"
+HEADER_SET_SESSION = f"X-{flavour}-Set-Session"
+HEADER_CLEAR_SESSION = f"X-{flavour}-Clear-Session"
 
-HEADER_ROLE = "X-Trino-Role"
-HEADER_SET_ROLE = "X-Trino-Set-Role"
+HEADER_ROLE = f"X-{flavour}-Role"
+HEADER_SET_ROLE = f"X-{flavour}-Set-Role"
 
-HEADER_STARTED_TRANSACTION = "X-Trino-Started-Transaction-Id"
-HEADER_TRANSACTION = "X-Trino-Transaction-Id"
+HEADER_STARTED_TRANSACTION = f"X-{flavour}-Started-Transaction-Id"
+HEADER_TRANSACTION = f"X-{flavour}-Transaction-Id"
 
-HEADER_PREPARED_STATEMENT = 'X-Trino-Prepared-Statement'
-HEADER_ADDED_PREPARE = 'X-Trino-Added-Prepare'
-HEADER_DEALLOCATED_PREPARE = 'X-Trino-Deallocated-Prepare'
+HEADER_PREPARED_STATEMENT = f'X-{flavour}-Prepared-Statement'
+HEADER_ADDED_PREPARE = f'X-{flavour}-Added-Prepare'
+HEADER_DEALLOCATED_PREPARE = f'X-{flavour}-Deallocated-Prepare'
 
-HEADER_SET_SCHEMA = "X-Trino-Set-Schema"
-HEADER_SET_CATALOG = "X-Trino-Set-Catalog"
+HEADER_SET_SCHEMA = f"X-{flavour}-Set-Schema"
+HEADER_SET_CATALOG = f"X-{flavour}-Set-Catalog"
 
-HEADER_CLIENT_CAPABILITIES = "X-Trino-Client-Capabilities"
+HEADER_CLIENT_CAPABILITIES = f"X-{flavour}-Client-Capabilities"
 
 LENGTH_TYPES = ["char", "varchar"]
 PRECISION_TYPES = ["time", "time with time zone", "timestamp", "timestamp with time zone", "decimal"]

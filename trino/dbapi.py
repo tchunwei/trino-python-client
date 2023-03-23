@@ -418,10 +418,12 @@ class Cursor(object):
 
         if isinstance(param, datetime.datetime) and param.tzinfo is None:
             datetime_str = param.strftime("%Y-%m-%d %H:%M:%S.%f")
+            datetime_str = datetime_str[:-3]
             return "TIMESTAMP '%s'" % datetime_str
 
         if isinstance(param, datetime.datetime) and param.tzinfo is not None:
             datetime_str = param.strftime("%Y-%m-%d %H:%M:%S.%f")
+            datetime_str = datetime_str[:-3]
             # named timezones
             if hasattr(param.tzinfo, 'zone'):
                 return "TIMESTAMP '%s %s'" % (datetime_str, param.tzinfo.zone)
@@ -431,6 +433,7 @@ class Cursor(object):
         # We can't calculate the offset for a time without a point in time
         if isinstance(param, datetime.time) and param.tzinfo is None:
             time_str = param.strftime("%H:%M:%S.%f")
+            time_str = time_str[:-3]
             return "TIME '%s'" % time_str
 
         if isinstance(param, datetime.date):

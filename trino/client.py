@@ -43,6 +43,7 @@ import random
 import re
 import threading
 import urllib.parse
+import uuid
 import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
@@ -50,20 +51,17 @@ from decimal import Decimal
 from time import sleep
 from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-import pytz
+try:
+    from zoneinfo import ZoneInfo
+except ModuleNotFoundError:
+    from backports.zoneinfo import ZoneInfo
+
 import requests
-from pytz.tzinfo import BaseTzInfo
+from dateutil import tz
 from tzlocal import get_localzone_name  # type: ignore
 
 import trino.logging
 from trino import constants, exceptions
-
-try:
-    from zoneinfo import ZoneInfo  # type: ignore
-
-except ModuleNotFoundError:
-    from backports.zoneinfo import ZoneInfo  # type: ignore
-
 
 __all__ = ["ClientSession", "TrinoQuery", "TrinoRequest", "PROXIES"]
 
@@ -135,7 +133,7 @@ class ClientSession(object):
         transaction_id: str = None,
         extra_credential: List[Tuple[str, str]] = None,
         client_tags: List[str] = None,
-        roles: Dict[str, str] = None,
+        roles: Union[Dict[str, str], str] = None,
         timezone: str = None,
     ):
         self._user = user
@@ -239,6 +237,8 @@ class ClientSession(object):
             return self._timezone
 
     def _format_roles(self, roles):
+        if isinstance(roles, str):
+            roles = {"system": roles}
         formatted_roles = {}
         for catalog, role in roles.items():
             is_legacy_role_pattern = ROLE_PATTERN.match(role) is not None
@@ -943,7 +943,7 @@ def _create_tzinfo(timezone_str: str) -> tzinfo:
             return timezone(-timedelta(hours=int(hours), minutes=int(minutes)))
         return timezone(timedelta(hours=int(hours), minutes=int(minutes)))
     else:
-        return pytz.timezone(timezone_str)
+        return ZoneInfo(timezone_str)
 
 
 def _fraction_to_decimal(fractional_str: str) -> Decimal:
@@ -993,8 +993,7 @@ class TemporalType(Generic[PythonTemporalType], metaclass=abc.ABCMeta):
     def normalize(self, value: PythonTemporalType) -> PythonTemporalType:
         """
             If `add_time_delta` results in value crossing DST boundaries, this method should
-            return a normalized version of the value to account for it, for example,
-            using `pytz.timezone.normalize`.
+            return a normalized version of the value to account for it.
         """
         return value
 
@@ -1038,7 +1037,7 @@ class TimestampWithTimeZone(Timestamp, TemporalType[datetime]):
         return TimestampWithTimeZone(value, fraction)
 
     def normalize(self, value: datetime) -> datetime:
-        if isinstance(self._whole_python_temporal_value.tzinfo, BaseTzInfo):
+        if tz.datetime_ambiguous(value):
             return self._whole_python_temporal_value.tzinfo.normalize(value)
         return value
 
@@ -1128,14 +1127,48 @@ class ArrayValueMapper(ValueMapper[List[Optional[Any]]]):
         return [self.mapper.map(value) for value in values]
 
 
+class NamedRowTuple(tuple):
+    """Custom tuple class as namedtuple doesn't support missing or duplicate names"""
+    def __new__(cls, values, names: List[str], types: List[str]):
+        return super().__new__(cls, values)
+
+    def __init__(self, values, names: List[str], types: List[str]):
+        self._names = names
+        # With names and types users can retrieve the name and Trino data type of a row
+        self.__annotations__ = dict()
+        self.__annotations__["names"] = names
+        self.__annotations__["types"] = types
+        elements: List[Any] = []
+        for name, value in zip(names, values):
+            if names.count(name) == 1:
+                setattr(self, name, value)
+                elements.append(f"{name}: {repr(value)}")
+            else:
+                elements.append(repr(value))
+        self._repr = "(" + ", ".join(elements) + ")"
+
+    def __getattr__(self, name):
+        if self._names.count(name):
+            raise ValueError("Ambiguous row field reference: " + name)
+
+    def __repr__(self):
+        return self._repr
+
+
 class RowValueMapper(ValueMapper[Tuple[Optional[Any], ...]]):
-    def __init__(self, mappers: List[ValueMapper[Any]]):
+    def __init__(self, mappers: List[ValueMapper[Any]], names: List[str], types: List[str]):
         self.mappers = mappers
+        self.names = names
+        self.types = types
 
     def map(self, values: List[Any]) -> Optional[Tuple[Optional[Any], ...]]:
         if values is None:
             return None
-        return tuple(self.mappers[index].map(value) for index, value in enumerate(values))
+        return NamedRowTuple(
+            list(self.mappers[index].map(value) for index, value in enumerate(values)),
+            self.names,
+            self.types
+        )
 
 
 class MapValueMapper(ValueMapper[Dict[Any, Optional[Any]]]):
@@ -1149,6 +1182,13 @@ class MapValueMapper(ValueMapper[Dict[Any, Optional[Any]]]):
         return {
             self.key_mapper.map(key): self.value_mapper.map(value) for key, value in values.items()
         }
+
+
+class UuidValueMapper(ValueMapper[uuid.UUID]):
+    def map(self, value: Any) -> Optional[uuid.UUID]:
+        if value is None:
+            return None
+        return uuid.UUID(value)
 
 
 class NoOpRowMapper:
@@ -1183,8 +1223,14 @@ class RowMapperFactory:
             value_mapper = self._create_value_mapper(column['arguments'][0]['value'])
             return ArrayValueMapper(value_mapper)
         elif col_type == 'row':
-            mappers = [self._create_value_mapper(arg['value']['typeSignature']) for arg in column['arguments']]
-            return RowValueMapper(mappers)
+            mappers = []
+            names = []
+            types = []
+            for arg in column['arguments']:
+                mappers.append(self._create_value_mapper(arg['value']['typeSignature']))
+                names.append(arg['value']['fieldName']['name'] if "fieldName" in arg['value'] else None)
+                types.append(arg['value']['typeSignature']['rawType'])
+            return RowValueMapper(mappers, names, types)
         elif col_type == 'map':
             key_mapper = self._create_value_mapper(column['arguments'][0]['value'])
             value_mapper = self._create_value_mapper(column['arguments'][1]['value'])
@@ -1205,6 +1251,8 @@ class RowMapperFactory:
             return DateValueMapper()
         elif col_type == 'varbinary':
             return BinaryValueMapper()
+        elif col_type == 'uuid':
+            return UuidValueMapper()
         else:
             return NoOpValueMapper()
 

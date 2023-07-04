@@ -6,6 +6,47 @@ list](https://github.com/trinodb/trino-python-client/tags), the
 [README](https://github.com/trinodb/trino-python-client/blob/master/README.md)
 and the [PyPI page](https://pypi.org/project/trino/).
 
+## Release 0.326.0
+
+* Fix SQLAlchemy URL failing to parse if `legacy_prepared_statements` parameter
+  was specified.
+  ([#380](https://github.com/trinodb/trino-python-client/issues/380))
+* Fix more than required `EXECUTE IMMEDIATE` queries being executed when
+  `legacy_prepared_statements` parameter wasn't explicitly set.
+  ([#380](https://github.com/trinodb/trino-python-client/issues/380))
+
+## Release 0.325.0
+
+* Queries with parameters now uses `EXECUTE IMMEDIATE` instead of `PREPARE`,
+  `EXECUTE` and `DEALLOCATE` if the server supports `EXECUTE IMMEDIATE`. If
+  `EXECUTE IMMEDIATE` is not support the client falls back to using `PREPARE`,
+  `EXECUTE` and `DEALLOCATE`. If you want to always use `PREPARE`, `EXECUTE`
+  and `DEALLOCATE` set the kwarg `legacy_prepared_statements` to `True`.
+  ([#375](https://github.com/trinodb/trino-python-client/issues/375))
+
+## Release 0.324.0
+
+* Reduce the number of times `SELECT version()` query is sent to Trino when
+  using SQLAlchemy.
+  ([#371](https://github.com/trinodb/trino-python-client/issues/371))
+* Fix `TIMESTAMP WITH TIME ZONE` being mapped to incorrect zones.
+  ([#366](https://github.com/trinodb/trino-python-client/issues/366))
+
+## Release 0.323.0
+
+* Fix handling of `Decimal` params which use scientific notation.
+  ([#347](https://github.com/trinodb/trino-python-client/issues/347))
+* Map Trino `UUID` type to Python `uuid.UUID`.
+  ([#354](https://github.com/trinodb/trino-python-client/issues/354))
+* Map `sqlalchemy.Uuid` type to Trino `UUID`.
+  ([#359](https://github.com/trinodb/trino-python-client/issues/359))
+* Support using timezone aware `datetime.time` params in prepared statements.
+  ([#360](https://github.com/trinodb/trino-python-client/issues/360))
+* Allow accessing `ROW` type fields using their names in addition to their indices.
+  ([#338](https://github.com/trinodb/trino-python-client/issues/338))
+* Interpret `roles` without catalog name as system roles for convenience.
+  ([#341](https://github.com/trinodb/trino-python-client/issues/341))
+
 ## Release 0.322.0
 
 * Return `rowcount` property on the DB-API `Cursor` when available.

@@ -128,6 +128,9 @@ class TrinoDialect(DefaultDialect):
         if "legacy_primitive_types" in url.query:
             kwargs["legacy_primitive_types"] = json.loads(unquote_plus(url.query["legacy_primitive_types"]))
 
+        if "legacy_prepared_statements" in url.query:
+            kwargs["legacy_prepared_statements"] = json.loads(unquote_plus(url.query["legacy_prepared_statements"]))
+
         if "verify" in url.query:
             kwargs["verify"] = json.loads(unquote_plus(url.query["verify"]))
 
@@ -336,15 +339,20 @@ class TrinoDialect(DefaultDialect):
         """Trino has no support for sequence. Returns False indicate that given sequence does not exists."""
         return False
 
-    def _get_server_version_info(self, connection: Connection) -> Any:
-        query = "SELECT version()"
-        try:
-            res = connection.execute(sql.text(query))
-            version = res.scalar()
-            return tuple([version])
-        except exc.ProgrammingError as e:
-            logger.debug(f"Failed to get server version: {e.orig.message}")
-            return None
+    @classmethod
+    def _get_server_version_info(cls, connection: Connection) -> Any:
+        def get_server_version_info(_):
+            query = "SELECT version()"
+            try:
+                res = connection.execute(sql.text(query))
+                version = res.scalar()
+                return tuple([version])
+            except exc.ProgrammingError as e:
+                logger.debug(f"Failed to get server version: {e.orig.message}")
+                return None
+
+        # Make server_version_info lazy in order to only make HTTP calls if user explicitly requests it.
+        cls.server_version_info = property(get_server_version_info, lambda instance, value: None)
 
     def _raw_connection(self, connection: Union[Engine, Connection]) -> trino_dbapi.Connection:
         if isinstance(connection, Engine):
